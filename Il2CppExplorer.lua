@@ -4,7 +4,7 @@ if (explorer == nil or type(explorer) ~= 'table') then
 end
 -- Output debug messages
 if explorer.debug == nil then
-	explorer.debug = false -- Mặc định là false, bạn có thể đổi thành true để xem thêm log
+	explorer.debug = false
 end
 -- Let people know you are using my framework :D
 if (explorer.printAdvert == nil) then
@@ -15,9 +15,9 @@ if (explorer.exitOnNotUnityGame == nil) then
 	explorer.exitOnNotUnityGame = true
 end
 
-local libStart = 0x0 -- Địa chỉ bắt đầu của libil2cpp.so
-explorer.maxStringLength = 1000 -- Giới hạn độ dài chuỗi khi đọc
-local alphabet = {} -- Bảng chữ cái cho việc đọc chuỗi Unicode
+local libStart = 0x0
+explorer.maxStringLength = 1000
+local alphabet = {}
 
 if explorer.printAdvert then
 	print('✨ Made with Il2CppExplorer by HTCheater (truonggiangsualai version)')
@@ -51,20 +51,20 @@ string.removeStart = function(str, rem)
 end
 
 local isx64 = gg.getTargetInfo().x64
-local metadata_ranges = gg.getRangesList('global-metadata.dat') -- Đổi tên để tránh xung đột với biến metadata cục bộ
+local metadata_ranges = gg.getRangesList('global-metadata.dat')
 local TYPE_PTR = isx64 and gg.TYPE_QWORD or gg.TYPE_DWORD
-local METADATA_INFO -- Sẽ được gán trong initMetadataIfNeeded
+local METADATA_INFO
 
 local function initMetadataIfNeeded()
     if METADATA_INFO then return end
     if #metadata_ranges > 0 then
-        METADATA_INFO = metadata_ranges[1] -- Chỉ lấy range đầu tiên tìm thấy
+        METADATA_INFO = metadata_ranges[1]
         if explorer.debug then
             explorer.print("ℹ️ Metadata Range: start=0x" .. string.format("%X", METADATA_INFO.start) .. ", end=0x" .. string.format("%X", METADATA_INFO['end']))
         end
     else
         explorer.print("🔴 Không tìm thấy 'global-metadata.dat'. Các hàm phụ thuộc metadata sẽ không hoạt động.")
-        METADATA_INFO = {start = 0, ['end'] = 0} -- Để tránh lỗi nil, nhưng các hàm sẽ thất bại
+        METADATA_INFO = {start = 0, ['end'] = 0} 
     end
 end
 
@@ -105,9 +105,9 @@ function explorer.getClassMetadataPtr(classname)
 	initMetadataIfNeeded()
 	if type(classname) ~= 'string' then
 		explorer.print('🔴 explorer.getClassMetadataPtr: classname phải là string, nhận được ' .. type(classname))
-		return 0 -- Trả về 0 thay vì table rỗng để nhất quán
+		return 0 
 	end
-	if METADATA_INFO.start == 0 then return 0 end -- Không có metadata
+	if METADATA_INFO.start == 0 then return 0 end 
 
 	explorer.setAllRanges()
 	gg.clearResults()
@@ -133,19 +133,17 @@ end
 function explorer.getAllocatedClassPtr(metadataPtr)
     if metadataPtr == 0 or metadataPtr == nil then return 0 end
 	local addr = 0x0
-    -- Nên tìm kiếm trong các vùng nhớ phù hợp hơn thay vì chỉ libc_malloc
-    -- Ví dụ: REGION_C_HEAP, REGION_ANONYMOUS
     local search_ranges = {"REGION_C_HEAP", "REGION_ANONYMOUS", "libc_malloc", "linker_alloc"}
 	for _, range_name_part in ipairs(search_ranges) do
 	    for k, v in pairs(gg.getRangesList(range_name_part)) do
 		    gg.clearResults()
 		    gg.searchNumber(string.format('%X', metadataPtr) .. 'h', TYPE_PTR, false, gg.SIGN_EQUAL, v.start, v['end'], 0)
-		    local results = gg.getResults(100000) -- Giới hạn số lượng để tránh quá tải
+		    local results = gg.getResults(100000) 
 		    gg.clearResults()
 		    for i, res in ipairs(results) do
 			    if explorer.isClassPointer(res.address) then
 				    addr = res.address - (isx64 and 0x10 or 0x8)
-				    goto found_allocated_ptr -- Nhảy ra khỏi các vòng lặp
+				    goto found_allocated_ptr 
 			    end
 		    end
 	    end
@@ -157,7 +155,7 @@ function explorer.getAllocatedClassPtr(metadataPtr)
 	return addr
 end
 
-function explorer.getInstances(className, namespace)
+function explorer.getInstances(className, namespace) 
 	if namespace and explorer.debug then
 		explorer.print("ℹ️ explorer.getInstances: namespace '"..tostring(namespace).."' được cung cấp. Logic tìm kiếm hiện tại chủ yếu dựa vào className.")
 	end
@@ -166,12 +164,12 @@ function explorer.getInstances(className, namespace)
 	local allocPtr = explorer.getAllocatedClassPtr(mPtr)
 	if allocPtr == 0 then return {} end
 	
-	gg.setRanges(gg.REGION_ANONYMOUS) -- Có thể cần mở rộng vùng này
+	gg.setRanges(gg.REGION_ANONYMOUS) 
 	gg.clearResults()
 	local r = {{address = allocPtr, flags = TYPE_PTR}}
 	gg.loadResults(r)
-	gg.searchPointer(0) -- Tìm các con trỏ trỏ đến allocPtr (thường là các instance)
-	r = gg.getResults(10000) -- Giới hạn số lượng instance trả về
+	gg.searchPointer(0) 
+	r = gg.getResults(10000) 
 	if (#r == 0 and explorer.debug) then
 		explorer.print('🔴 explorer.getInstances: không có instance cho ' .. className)
 	end
@@ -180,22 +178,19 @@ function explorer.getInstances(className, namespace)
 end
 
 function explorer.getLib()
-    if libStart ~= 0x0 then return end -- Đã lấy trước đó
-
+    if libStart ~= 0x0 then return end 
 	explorer.setAllRanges()
 	local libRanges = gg.getRangesList('libil2cpp.so')
 	if #libRanges > 0 then
 	    for _, rangeEntry in ipairs(libRanges) do
-	        if rangeEntry.isExecutable then -- Chỉ lấy vùng thực thi đầu tiên
+	        if rangeEntry.isExecutable then 
 	            libStart = rangeEntry.start
 	            explorer.print("🟢 explorer.getLib: libil2cpp.so found at 0x"..string.format("%X", libStart))
 	            return
 	        end
 	    end
 	end
-
 	explorer.print("⚠️ explorer.getLib: 'libil2cpp.so' not found directly. Attempting fallback.")
-	-- Fallback (ít đáng tin cậy hơn)
 	local allRanges = gg.getRangesList()
 	for _, rangeEntry in ipairs(allRanges) do
 		if rangeEntry.isExecutable and rangeEntry.name and string.find(rangeEntry.name, "libil2cpp.so") then
@@ -223,7 +218,7 @@ function explorer.getField(instance, offset, fieldName, valueType, offsetX32)
 		explorer.print('🔴 explorer.getField: valueType phải là number, nhận được ' .. type(valueType))
 		return nil
 	end
-	local currentOffset = isx64 and offset or (offsetX32 or offset) -- Ưu tiên offsetX32 nếu là 32bit và được cung cấp
+	local currentOffset = isx64 and offset or (offsetX32 or offset)
 	if currentOffset == nil then
 		explorer.print('🔴 explorer.getField: offset không được chỉ định cho kiến trúc này.')
 		return nil
@@ -236,69 +231,52 @@ function explorer.getField(instance, offset, fieldName, valueType, offsetX32)
 end
 
 function explorer.getStaticField(className, fieldName, namespace, valueType, staticFieldDataPointerOffset, fieldOffsetInStaticData)
-    if not explorer.debug then 
-        -- Tắt tạm các print không cần thiết nếu không ở debug mode
-        local oldPrint = explorer.print
-        explorer.print = function() end 
-    end
-
-    if type(className) ~= 'string' then explorer.print('🔴 getStaticField: className phải là string.'); return nil end
-    if type(fieldName) ~= 'string' then explorer.print('🔴 getStaticField: fieldName phải là string.'); return nil end
-    if namespace and type(namespace) ~= 'string' then explorer.print('🔴 getStaticField: namespace phải là string hoặc nil.'); return nil end
-    if type(valueType) ~= 'number' then explorer.print('🔴 getStaticField: valueType phải là number.'); return nil end
+    local was_debug = explorer.debug
+    -- explorer.debug = true -- Bật debug tạm thời cho hàm này nếu cần
+    
+    if type(className) ~= 'string' then explorer.print('🔴 getStaticField: className phải là string.'); if not was_debug then explorer.debug = false end; return nil end
+    if type(fieldName) ~= 'string' then explorer.print('🔴 getStaticField: fieldName phải là string.'); if not was_debug then explorer.debug = false end; return nil end
+    if namespace and type(namespace) ~= 'string' then explorer.print('🔴 getStaticField: namespace phải là string hoặc nil.'); if not was_debug then explorer.debug = false end; return nil end
+    if type(valueType) ~= 'number' then explorer.print('🔴 getStaticField: valueType phải là number.'); if not was_debug then explorer.debug = false end; return nil end
 
     local mPtr = explorer.getClassMetadataPtr(className)
-    if mPtr == 0 then explorer.print("🔴 getStaticField: Không tìm thấy metadata ptr cho class: " .. className); if oldPrint then explorer.print = oldPrint end; return nil end
-
-    -- Lấy Il2CppClass object. Đây là bước quan trọng và có thể khác nhau tùy theo cách Il2CppExplorer tìm thấy nó.
-    -- getAllocatedClassPtr trả về con trỏ tới instance của class nếu nó là MonoBehaviour, hoặc cấu trúc class nếu nó được cấp phát.
-    -- Đối với static fields, chúng ta cần con trỏ đến Il2CppClass object thực sự.
-    -- Thông thường, static_fields nằm trong Il2CppClass.
-    -- Giả sử getAllocatedClassPtr trả về một con trỏ có thể dùng để truy cập static_fields_offset
+    if mPtr == 0 then explorer.print("🔴 getStaticField: Không tìm thấy metadata ptr cho class: " .. className); if not was_debug then explorer.debug = false end; return nil end
+    
     local classObjectRuntimePtr = explorer.getAllocatedClassPtr(mPtr) 
     if classObjectRuntimePtr == 0 then 
-        explorer.print("🔴 getStaticField: Không tìm thấy allocated class object cho: " .. className .. ". Thử tìm trực tiếp từ metadata image (cần code phức tạp hơn)."); 
-        if oldPrint then explorer.print = oldPrint end; 
+        explorer.print("🔴 getStaticField: Không tìm thấy allocated class object cho: " .. className); 
+        if not was_debug then explorer.debug = false end; 
         return nil 
     end
 
     if not staticFieldDataPointerOffset or not fieldOffsetInStaticData then
-        explorer.print("🔴 getStaticField: Cần `staticFieldDataPointerOffset` và `fieldOffsetInStaticData` cho " .. className .. "." .. fieldName)
-        explorer.print("   Đây là các offset đặc thù của game, cần tìm từ dump.cs hoặc reverse engineering.")
-        explorer.print("   Ví dụ: staticFieldDataPointerOffset là offset từ đầu Il2CppClass* đến con trỏ static_fields.")
-        explorer.print("   fieldOffsetInStaticData là offset của trường tĩnh bên trong khối static_fields đó.")
-        if oldPrint then explorer.print = oldPrint end
+        explorer.print("🔴 getStaticField: Cần `staticFieldDataPointerOffset` (0x" .. string.format("%X", staticFieldDataPointerOffset or -1) .. ") và `fieldOffsetInStaticData` (0x" .. string.format("%X", fieldOffsetInStaticData or -1) .. ") cho " .. className .. "." .. fieldName)
+        if not was_debug then explorer.debug = false end
         return nil
     end
 
     local staticFieldsBlockPtr = explorer.readPointer(classObjectRuntimePtr + staticFieldDataPointerOffset)
     if not staticFieldsBlockPtr or staticFieldsBlockPtr == 0 then
-        explorer.print("🔴 getStaticField: Không đọc được con trỏ khối static data cho " .. className .. " tại classObjectPtr + 0x" .. string.format("%X", staticFieldDataPointerOffset))
-        if oldPrint then explorer.print = oldPrint end
+        explorer.print("🔴 getStaticField: Không đọc được con trỏ khối static data cho " .. className .. " tại classObjectPtr (0x" .. string.format("%X", classObjectRuntimePtr) ..") + 0x" .. string.format("%X", staticFieldDataPointerOffset))
+        if not was_debug then explorer.debug = false end
         return nil
     end
     
+    explorer.print("ℹ️ getStaticField: staticFieldsBlockPtr cho " .. className .. " = 0x" .. string.format("%X", staticFieldsBlockPtr))
     local fieldValue = explorer.readValue(staticFieldsBlockPtr + fieldOffsetInStaticData, valueType)
+    explorer.print("ℹ️ getStaticField: ".. className .. "." .. fieldName .. " (static) value at 0x".. string.format("%X", staticFieldsBlockPtr + fieldOffsetInStaticData) .." = " .. tostring(fieldValue))
 
     if fieldValue ~= nil and valueType == TYPE_PTR and fieldValue ~= 0 then
-        -- Nếu là Singleton Instance, trả về dạng table instance
         if fieldName == "Instance" or fieldName == "instance" then
-             if oldPrint then explorer.print = oldPrint end
+            if not was_debug then explorer.debug = false end
             return { address = fieldValue, __className = className }
         end
     end
     
-    if oldPrint then explorer.print = oldPrint end -- Khôi phục hàm print
+    if not was_debug then explorer.debug = false end
     return fieldValue
 end
 
-
--- Các hàm khác giữ nguyên như file bạn cung cấp
--- ... (readValue, readByte, readShort, readInt, readPointer, print, readString, setAlphabet)
--- ... (memory.alloc, memory.write, memory.resetAllocator)
--- ... (phần getFunction, editFunction, patchLib, isFunctionPointer nếu bạn có giữ lại)
-
--- Đảm bảo các hàm đọc cơ bản được định nghĩa đúng
 function explorer.readValue(addr, valueType)
 	if type(addr) ~= 'number' or addr == 0 then
 		explorer.print('🔴 explorer.readValue: địa chỉ không hợp lệ ' .. tostring(addr))
@@ -311,7 +289,7 @@ function explorer.readValue(addr, valueType)
 	local t = {{address = addr, flags = valueType}}
 	t = gg.getValues(t)
     if t and t[1] then return t[1].value end
-    explorer.print('🔴 explorer.readValue: gg.getValues thất bại cho địa chỉ ' .. string.format('%X', addr))
+    explorer.print('🔴 explorer.readValue: gg.getValues thất bại cho địa chỉ 0x' .. string.format('%X', addr))
     return nil
 end
 
@@ -351,10 +329,12 @@ function explorer.readString(addr)
 	for _, v_entry in ipairs(strTable) do
 	    if v_entry and v_entry.value then
 		    local char_code = v_entry.value
-		    if char_code >= 0 and char_code < 0xD800 then -- Non-surrogate
-		        table.insert(chars, utf8.char(char_code)) -- Sử dụng utf8.char để xử lý Unicode tốt hơn
-		    else
-		        table.insert(chars, "?") -- Thay thế các ký tự phức tạp hoặc surrogate
+		    if char_code >= 0 and char_code < 0xD800 then 
+		        table.insert(chars, utf8.char(char_code)) 
+		    elseif char_code >= 0xE000 and char_code <= 0xFFFF then -- Basic Multilingual Plane, excluding surrogates
+		        table.insert(chars, utf8.char(char_code))
+            else
+		        table.insert(chars, "?") 
 		    end
 		else
 		    explorer.print("🔴 readString: Mục nil trong strTable.")
@@ -363,19 +343,7 @@ function explorer.readString(addr)
 	return table.concat(chars)
 end
 
-function explorer.setAlphabet(str)
-    -- Hàm này có thể không còn cần thiết nếu readString dùng utf8.char
-    -- Hoặc có thể giữ lại để tùy chỉnh nếu cần
-	if type(str) ~= 'string' then
-		explorer.print('🔴 explorer.setAlphabet: tham số phải là string, nhận được ' .. type(str))
-		return
-	end
-	alphabet = {} -- Reset
-	-- Logic cũ có thể không hiệu quả với utf8.char, xem xét lại nếu dùng
-end
-
-
--- Memory allocation (giữ nguyên từ bản của bạn)
+-- Memory allocation
 memory = {}
 local currentAllocAddress = nil
 local freeAllocSpace = nil
@@ -387,33 +355,33 @@ function memory.getFreeSpace() return freeAllocSpace end
 function memory.getPages() return allocatedPages end
 
 function memory.alloc(size_needed)
-    size_needed = size_needed or 4096 
-    if currentPageIndex > 0 and allocatedPages[currentPageIndex] and freeAllocSpace >= size_needed then
-        local alloc_ptr = currentAllocAddress
-        currentAllocAddress = currentAllocAddress + size_needed
-        freeAllocSpace = freeAllocSpace - size_needed
+    size_needed = size_needed or 4096 -- Dòng 390, đảm bảo không có ký tự lạ
+    if currentPageIndex > 0 and allocatedPages[currentPageIndex] and freeAllocSpace >= size_needed then
+        local alloc_ptr = currentAllocAddress
+        currentAllocAddress = currentAllocAddress + size_needed
+        freeAllocSpace = freeAllocSpace - size_needed
         if allocatedPages[currentPageIndex] then allocatedPages[currentPageIndex].used = allocatedPages[currentPageIndex].used + size_needed end
-        explorer.print('🟢 memory.alloc: cấp '..size_needed..' bytes từ trang hiện tại. Địa chỉ mới: ' .. string.format('%X', currentAllocAddress))
-        return alloc_ptr
-    end
-    local num_pages_to_alloc = math.ceil(size_needed / 4096)
-    local total_allocated_size = num_pages_to_alloc * 4096
-    local ptr = gg.allocatePage(gg.PROT_READ | gg.PROT_WRITE | gg.PROT_EXEC, total_allocated_size)
-    if not ptr or ptr == 0 then
-        explorer.print('🔴 memory.alloc: gg.allocatePage thất bại khi cấp '..total_allocated_size..' bytes.')
-        return nil
-    end
-    currentAllocAddress = ptr
-    freeAllocSpace = total_allocated_size
-    currentPageIndex = currentPageIndex + 1
-    allocatedPages[currentPageIndex] = {start = ptr, size = total_allocated_size, used = 0}
-    explorer.print('🟢 memory.alloc: cấp trang mới '..total_allocated_size..' bytes tại ' .. string.format('%X', currentAllocAddress))
-    local alloc_ptr = currentAllocAddress
-    currentAllocAddress = currentAllocAddress + size_needed
-    freeAllocSpace = freeAllocSpace - size_needed
-    allocatedPages[currentPageIndex].used = size_needed
-    explorer.print('🟢 memory.alloc: đã cấp '..size_needed..' bytes. Địa chỉ mới: ' .. string.format('%X', currentAllocAddress))
-    return alloc_ptr
+        explorer.print('🟢 memory.alloc: cấp '..size_needed..' bytes từ trang hiện tại. Địa chỉ mới: 0x' .. string.format('%X', currentAllocAddress))
+        return alloc_ptr
+    end
+    local num_pages_to_alloc = math.ceil(size_needed / 4096)
+    local total_allocated_size = num_pages_to_alloc * 4096
+    local ptr = gg.allocatePage(gg.PROT_READ | gg.PROT_WRITE | gg.PROT_EXEC, total_allocated_size)
+    if not ptr or ptr == 0 then
+        explorer.print('🔴 memory.alloc: gg.allocatePage thất bại khi cấp '..total_allocated_size..' bytes.')
+        return nil
+    end
+    currentAllocAddress = ptr
+    freeAllocSpace = total_allocated_size
+    currentPageIndex = currentPageIndex + 1
+    allocatedPages[currentPageIndex] = {start = ptr, size = total_allocated_size, used = 0}
+    explorer.print('🟢 memory.alloc: cấp trang mới '..total_allocated_size..' bytes tại 0x' .. string.format('%X', currentAllocAddress))
+    local alloc_ptr = currentAllocAddress
+    currentAllocAddress = currentAllocAddress + size_needed
+    freeAllocSpace = freeAllocSpace - size_needed
+    allocatedPages[currentPageIndex].used = size_needed
+    explorer.print('🟢 memory.alloc: đã cấp '..size_needed..' bytes. Địa chỉ mới: 0x' .. string.format('%X', currentAllocAddress))
+    return alloc_ptr
 end
 
 function memory.write(data_table)
@@ -427,7 +395,7 @@ function memory.write(data_table)
 			else v_entry.flags = gg.TYPE_DWORD end
 			data_table[k] = v_entry
 		end
-		spaceNeeded = spaceNeeded + (v_entry.flags == gg.TYPE_STRING and (utf8.len(v_entry.value) * 2 + 2) or v_entry.flags) -- Ước tính cho UTF-16
+		spaceNeeded = spaceNeeded + (v_entry.flags == gg.TYPE_STRING and (utf8.len(v_entry.value) * 2 + 2) or v_entry.flags) 
 	end
 	local startAddress = memory.alloc(spaceNeeded)
 	if not startAddress then explorer.print('🔴 memory.write: không cấp phát được bộ nhớ.'); return false, nil end
@@ -438,7 +406,7 @@ function memory.write(data_table)
 		currentWriteAddr = currentWriteAddr + (v_entry.flags == gg.TYPE_STRING and (utf8.len(v_entry.value) * 2 + 2) or v_entry.flags)
 	end
 	if not gg.setValues(tempWriteTable) then explorer.print('🔴 memory.write: gg.setValues thất bại.'); return false, nil end
-	explorer.print('🟢 memory.write: đã ghi ' .. #data_table .. ' items tại ' .. string.format('%X', startAddress))
+	explorer.print('🟢 memory.write: đã ghi ' .. #data_table .. ' items tại 0x' .. string.format('%X', startAddress))
 	return true, startAddress
 end
 
@@ -449,12 +417,12 @@ function memory.resetAllocator()
 	explorer.print('🟢 memory.resetAllocator: Bộ cấp phát đã được reset.')
 end
 
-if next(alphabet) == nil then
-    -- Không cần setAlphabet nếu readString đã xử lý Unicode tốt
-    -- explorer.setAlphabet("...") 
-end
+-- Initialize alphabet (có thể không cần nếu readString dùng utf8.char)
+-- if next(alphabet) == nil then
+--     explorer.setAlphabet("...") 
+-- end
 
 memory.resetAllocator()
-initMetadataIfNeeded() -- Gọi để khởi tạo METADATA_INFO sớm
+initMetadataIfNeeded() -- Khởi tạo METADATA_INFO
 
 return explorer
